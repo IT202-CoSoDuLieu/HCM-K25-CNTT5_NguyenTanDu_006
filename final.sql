@@ -23,13 +23,14 @@ CREATE TABLE enrollments(
     course_id INT,
 	student_id INT,
     enroll_time DATETIME NOT NULL,
-    credits INT CHECK(credits > 0),
+    credits INT,
     status ENUM ('Pending', 'Completed', 'Dropped') DEFAULT 'Pending',
     
     FOREIGN KEY (course_id) REFERENCES courses(course_id),
     FOREIGN KEY (student_id) REFERENCES students(student_id)
 );
 
+ALTER TABLE enrollments ADD CONSTRAINT CHECK(credits>0);
 
 CREATE TABLE enrollment_details(
 	detail_id VARCHAR(100) PRIMARY KEY,
@@ -63,7 +64,7 @@ INSERT INTO students(student_id, full_name, major, phone_number, gpa)
 VALUES 
 	(1,'Nguyễn Văn Hải', 'Hệ thống TT', '0931112223', 3.8),
     (2,'Trần Thu Hà', 'Kỹ thuật PM', '0932223334', 4.0),
-    (3,'NLê Quốc Tuấn', 'An toàn TT', '0933334445', 3.6),
+    (3,'Lê Quốc Tuấn', 'An toàn TT', '0933334445', 3.6),
     (4,'Phạm Minh Châu', 'Dữ liệu lớn', '0934445556', 3.9),
     (5,'Hoàng Gia Bảo', 'Hệ thống TT', '0935556667', 3.7);
 
@@ -133,3 +134,48 @@ HAVING  total_credit > 120;
 SELECT student_id, full_name, gpa FROM students
 WHERE gpa = (SELECT MAX(gpa) FROM students);
 
+-- Index & View 
+-- Tạo Index 
+CREATE INDEX index_enrollment 
+ON enrollments(status, credits);
+
+-- Tạo view 
+DROP VIEW view_student;
+CREATE VIEW view_student AS 
+SELECT s.full_name, COUNT(e.student_id) AS total_student_register 
+FROM enrollments e
+JOIN students s ON s.student_id= e.student_id
+WHERE e.status <> 'Dropped'
+GROUP BY s.full_name;
+
+SELECT * FROM view_student;
+
+-- Trigger 
+-- Khi cập nhật trạng thái thì tự động thêm bảng ghi vào academic_logs
+DELIMITER $$
+
+CREATE TRIGGER update_status 
+AFTER UPDATE ON enrollments
+FOR EACH ROW 
+BEGIN
+	IF NEW.status = 'Completed' AND 
+		OLD.status <> 'Completed'
+		THEN 
+        INSERT INTO academic_logs(detail_id, student_id, log_time, note)
+        VALUES (
+			detail_id,
+            student_id,
+            NOW(),
+            'Course Completed'
+		);
+	END IF;
+END $$
+
+DELIMITER ;
+
+UPDATE enrollments 
+SET status = 'Completed'
+WHERE enrollment_id = '7003';
+
+-- STORED PROCEDURE 
+DELIMITER $$
